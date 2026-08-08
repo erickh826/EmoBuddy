@@ -16,9 +16,16 @@ export function useCamera() {
     }
   }, []);
 
+  // Tracks whether the hook is still mounted; used to invalidate pending
+  // getUserMedia requests that resolve after cleanup.
+  const mountedRef = useRef(true);
+  // Tracks whether a getUserMedia request is currently in-flight so we
+  // never issue two concurrent requests.
+  const requestInFlightRef = useRef(false);
+
   const startCamera = useCallback(async () => {
-    // Already running
-    if (streamRef.current) return;
+    // Already running or a request is already in-flight
+    if (streamRef.current || requestInFlightRef.current) return;
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setPermissionState("unavailable");
@@ -26,16 +33,26 @@ export function useCamera() {
       return;
     }
 
+    requestInFlightRef.current = true;
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } },
         audio: false,
       });
+
+      // Component may have unmounted while the permission dialog was open.
+      if (!mountedRef.current) {
+        // Stop any acquired tracks immediately so the camera light goes off.
+        mediaStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       streamRef.current = mediaStream;
       setStream(mediaStream);
       setPermissionState("granted");
       setError(null);
     } catch (err) {
+      if (!mountedRef.current) return;
       const domError = err as DOMException;
       if (
         domError.name === "NotAllowedError" ||
@@ -53,12 +70,16 @@ export function useCamera() {
         setPermissionState("unavailable");
         setError("鏡頭無法啟動，請稍後再試");
       }
+    } finally {
+      requestInFlightRef.current = false;
     }
   }, []);
 
   // Cleanup on unmount
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       stopCamera();
     };
   }, [stopCamera]);
