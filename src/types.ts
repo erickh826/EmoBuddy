@@ -13,6 +13,31 @@ export interface TaskChoice {
   icon: string;
 }
 
+// ====== Theme System (2.5D Visual Upgrade) ======
+
+export interface ThemeConfig {
+  id: string;
+  className: string;
+  floorBg: string;
+  wallTop: string;
+  wallSide: string;
+  wallHighlight: string;
+  borderTop: string;
+  borderSide: string;
+  accentColor: string;
+  accentForeground: string;
+  backgroundColor: string;
+  textColor: string;
+  playerColor: string;
+  playerGradient: string;
+  shardGradient: string;
+  shardGlow: string;
+  npcGradient?: string;
+  npcColor?: string;
+  buttonBg: string;
+  buttonHover: string;
+}
+
 export interface LevelConfig {
   id: number;
   title: string;
@@ -35,7 +60,7 @@ export interface LevelConfig {
     choices: TaskChoice[];
   };
   completionMessage: string;
-  theme: string;
+  theme: ThemeConfig;
 }
 
 export type GamePhase =
@@ -51,6 +76,7 @@ export interface GameState {
   levelIndex: number;
   phase: GamePhase;
   playerPosition: Position;
+  playerDirection: Direction;
   muted: boolean;
   reducedMotion: boolean;
   objectiveCompleted: boolean;
@@ -61,7 +87,8 @@ export interface GameState {
 export type GameAction =
   | { type: "START_GAME" }
   | { type: "START_LEVEL" }
-  | { type: "MOVE_PLAYER"; position: Position }
+  | { type: "MOVE_PLAYER"; position: Position; direction: Direction }
+  | { type: "SET_PLAYER_DIRECTION"; direction: Direction }
   | { type: "COMPLETE_DIGITAL_OBJECTIVE" }
   | { type: "SELECT_TASK_CHOICE"; choiceId: string }
   | { type: "OPEN_PARENT_CONFIRMATION" }

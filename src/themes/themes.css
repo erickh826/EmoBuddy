@@ -1,0 +1,199 @@
+/* ============================================================
+   2.5D Top‑Down Theme System
+   Bomberman‑style isometric grid with CSS 3D extrusions
+   ============================================================ */
+
+/* ---- CSS Custom Properties (per‑theme, set via className) ---- */
+
+.theme-happy-garden {
+  --theme-bg: #fefce8;
+  --theme-accent: #f59e0b;
+  --theme-text: #5d4037;
+  --theme-wall-top: #86efac;
+  --theme-wall-side: #22c55e;
+  --theme-wall-highlight: #bbf7d0;
+  --theme-floor: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  --theme-border-top: #92400e;
+  --theme-border-side: #78350f;
+  --theme-player: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+  --theme-shard-glow: 0 0 12px rgba(245, 158, 11, 0.5);
+}
+
+.theme-calm-forest {
+  --theme-bg: #ecfdf5;
+  --theme-accent: #10b981;
+  --theme-text: #1a3a2a;
+  --theme-wall-top: #6ee7b7;
+  --theme-wall-side: #059669;
+  --theme-wall-highlight: #a7f3d0;
+  --theme-floor: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  --theme-border-top: #4a3f35;
+  --theme-border-side: #3e3127;
+  --theme-player: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);
+  --theme-shard-glow: 0 0 12px rgba(16, 185, 129, 0.5);
+}
+
+.theme-brave-hills {
+  --theme-bg: #fff7ed;
+  --theme-accent: #ea580c;
+  --theme-text: #431407;
+  --theme-wall-top: #fdba74;
+  --theme-wall-side: #c2410c;
+  --theme-wall-highlight: #fed7aa;
+  --theme-floor: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%);
+  --theme-border-top: #57534e;
+  --theme-border-side: #44403c;
+  --theme-player: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+  --theme-shard-glow: 0 0 12px rgba(234, 88, 12, 0.5);
+}
+
+/* ---- 2.5D Cell Base ---- */
+
+.grid-cell {
+  position: relative;
+  border-radius: 3px;
+  transition: box-shadow 0.15s ease;
+}
+
+/* Floor cell — flat with subtle inset shadow */
+.cell-floor {
+  background: var(--theme-floor, #f0fdf4);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Wall cell — 3D extruded block using box‑shadow */
+.cell-wall {
+  background: var(--theme-wall-top, #86efac);
+  box-shadow:
+    /* top face highlight */
+    1px 1px 0 var(--theme-wall-highlight, #bbf7d0),
+    /* right side shadow */
+    4px 4px 0 var(--theme-wall-side, #22c55e),
+    /* bottom-right outer shadow */
+    5px 5px 0 rgba(0, 0, 0, 0.12);
+  z-index: 1;
+}
+
+/* Border cell — darker 3D wall (level boundary) */
+.cell-border {
+  background: var(--theme-border-top, #92400e);
+  box-shadow:
+    1px 1px 0 rgba(255, 255, 255, 0.1),
+    4px 4px 0 var(--theme-border-side, #78350f),
+    5px 5px 0 rgba(0, 0, 0, 0.18);
+  z-index: 1;
+}
+
+/* ---- Player Sprite ---- */
+
+.player-sprite {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--theme-player, linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%));
+  box-shadow:
+    0 4px 0 rgba(0, 0, 0, 0.2),
+    0 6px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+  transition: transform 0.12s ease;
+}
+.player-sprite::after {
+  content: "";
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 50%;
+  height: 3px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+/* Direction indicator — tiny "nose" or arrow */
+.player-sprite.dir-up::before    { content: "▲"; }
+.player-sprite.dir-down::before  { content: "▼"; }
+.player-sprite.dir-left::before  { content: "◀"; }
+.player-sprite.dir-right::before { content: "▶"; }
+.player-sprite::before {
+  position: absolute;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  line-height: 1;
+}
+
+/* ---- Shard Sprite (diamond glow) ---- */
+
+.shard-sprite {
+  position: absolute;
+  inset: 6px;
+  border-radius: 20%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #fcd34d 0%, #f59e0b 100%);
+  box-shadow: var(--theme-shard-glow, 0 0 12px rgba(245, 158, 11, 0.5));
+  z-index: 8;
+  rotate: 45deg;
+}
+
+/* Inner sparkle */
+.shard-sprite::after {
+  content: "";
+  position: absolute;
+  width: 40%;
+  height: 40%;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.6);
+  top: 30%;
+  left: 30%;
+}
+
+/* Slow idle rotation (only when reduced‑motion is off) */
+@media (prefers-reduced-motion: no-preference) {
+  .shard-animate {
+    animation: shard-spin 8s linear infinite;
+  }
+}
+@keyframes shard-spin {
+  from { rotate: 45deg; }
+  to   { rotate: 405deg; }
+}
+
+/* ---- NPC Sprite ---- */
+
+.npc-sprite {
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #fde68a 0%, #f59e0b 100%);
+  box-shadow:
+    0 3px 0 rgba(180, 83, 9, 0.3),
+    0 5px 10px rgba(180, 83, 9, 0.15);
+  z-index: 8;
+}
+.npc-sprite::after {
+  content: "🐾";
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* ---- Responsive Grid Sizing ---- */
+
+.game-grid {
+  display: grid;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.06);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.08);
+  width: min(88vw, 560px);
+  aspect-ratio: 1;
+  grid-auto-rows: 1fr;
+}
