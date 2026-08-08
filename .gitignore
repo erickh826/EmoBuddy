@@ -1,1 +1,89 @@
-node_modules
+# macOS / OS X
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+.AppleDB
+.AppleDesktop
+.apdisk
+
+# Node & Dependencies
+node_modules/
+jspm_packages/
+.npm
+.pnpm-store/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build & Cache
+dist/
+dist-ssr/
+build/
+out/
+.vite/
+.cache/
+.eslintcache
+.stylelintcache
+.turbo/
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+!.env.example
+
+# Editor & IDE settings
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+.cypress/
+playwright-report/
+blob-report/
+test-results/
+
+# Generated Game Assets
+public/assets/
+src/assets/
+
+# Python & Script outputs
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# Backup & Temporary files
+*.bak
+*.tmp
+*~
+
+scripts/
+
