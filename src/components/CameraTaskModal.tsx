@@ -187,12 +187,18 @@ export function CameraTaskModal({
 
             running = true;
             try {
-              // Accept any of the configured target labels.
-              const results = await Promise.all(
-                validTargets.map((label) => detectObject(video, label)),
-              );
+              // Check each target label sequentially so the module-level
+              // isInferenceRunning flag inside detectObject is always clear
+              // when the next label is attempted. Break early on a hit.
+              let detected = false;
+              for (const label of validTargets) {
+                if (await detectObject(video, label)) {
+                  detected = true;
+                  break;
+                }
+              }
               if (!cancelled.current) {
-                updateProgress(results.some(Boolean));
+                updateProgress(detected);
               }
             } finally {
               running = false;
