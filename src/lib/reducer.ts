@@ -53,6 +53,7 @@ export const initialState: GameState = {
   levelIndex: progress?.levelIndex ?? 0,
   phase: "welcome",
   playerPosition: progress?.playerPosition ?? { ...levels[0].playerStart },
+  playerDirection: "down",
   muted: settings.muted,
   reducedMotion: settings.reducedMotion,
   objectiveCompleted: false,
@@ -91,6 +92,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         playerPosition: { ...action.position },
+        playerDirection: action.direction,
+      };
+    }
+
+    case "SET_PLAYER_DIRECTION": {
+      return {
+        ...state,
+        playerDirection: action.direction,
       };
     }
 
