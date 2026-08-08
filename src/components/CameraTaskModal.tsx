@@ -139,9 +139,10 @@ export function CameraTaskModal({
         const detected = isColorDetected(video, colorStrategy.target);
         updateProgress(detected);
 
-        // If no detection within the timeout, fall back to next strategy.
+        // Fall back to the next strategy once the time budget is exhausted,
+        // regardless of the current detection result (a brief detection that
+        // never held long enough to complete should not block the fallback).
         if (
-          !detected &&
           nextStrategy !== null &&
           Date.now() - startedAt > COLOR_DETECTION_TIMEOUT_MS
         ) {
@@ -330,6 +331,8 @@ export function CameraTaskModal({
       return nextChain;
     };
 
+    // Reset before building the chain so re-runs of the effect start clean.
+    pendingObjStrategies = [];
     const startChain = buildChain(0);
 
     // Defer state updates to avoid synchronous setState-in-effect lint error.
@@ -367,12 +370,11 @@ export function CameraTaskModal({
     handleSkip();
   };
 
-  // Start camera on mount only if privacy was already acknowledged, or when
-  // the user first acknowledges privacy in this session.
-  const hasMountedRef = useRef(false);
+  // Start camera whenever privacy is acknowledged. useCamera already
+  // deduplicates concurrent requests via its own in-flight guard, so no
+  // extra ref is needed here.
   useEffect(() => {
-    if (!hasMountedRef.current && privacyAcked) {
-      hasMountedRef.current = true;
+    if (privacyAcked) {
       startCamera();
     }
   }, [privacyAcked, startCamera]);
