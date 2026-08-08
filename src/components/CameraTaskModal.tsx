@@ -138,11 +138,17 @@ export function CameraTaskModal({
 
   const startObjectDetection = useCallback(
     (
-      objStrategy: ObjectDetectionStrategy,
+      objStrategies: ObjectDetectionStrategy[],
       fallback: ColorDetectionStrategy | null,
       onFallbackToColor: () => void,
+      cancelled: { current: boolean },
     ) => {
-      if (!SUPPORTED_OBJECT_CLASSES.has(objStrategy.targetLabel)) {
+      // Filter to only supported labels; if none remain, fall back immediately.
+      const validTargets = objStrategies
+        .map((s) => s.targetLabel)
+        .filter((label) => SUPPORTED_OBJECT_CLASSES.has(label));
+
+      if (validTargets.length === 0) {
         if (fallback) {
           onFallbackToColor();
           startColorDetection(fallback);
@@ -150,13 +156,20 @@ export function CameraTaskModal({
         return;
       }
 
-      const loadingTimeout = setTimeout(() => {
-        setModelLoadingSlow(true);
+      const slowWarningTimeout = setTimeout(() => {
+        if (!cancelled.current) setModelLoadingSlow(true);
       }, MODEL_LOAD_TIMEOUT_MS);
 
-      loadCocoSsd()
+      // Race model load against the same MODEL_LOAD_TIMEOUT_MS threshold.
+      const loadTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), MODEL_LOAD_TIMEOUT_MS),
+      );
+
+      Promise.race([loadCocoSsd(), loadTimeout])
         .then(() => {
-          clearTimeout(loadingTimeout);
+          clearTimeout(slowWarningTimeout);
+          if (cancelled.current) return;
+
           // Clear any existing interval before starting a new one
           if (detectionIntervalRef.current !== null) {
             clearInterval(detectionIntervalRef.current);
@@ -164,18 +177,31 @@ export function CameraTaskModal({
           }
           setActiveStrategy("object");
 
+          // Serialize inference: schedule the next tick only after the
+          // previous one has finished, so a busy run is never counted as a miss.
+          let running = false;
           detectionIntervalRef.current = setInterval(async () => {
+            if (running || cancelled.current) return;
             const video = videoRef.current;
             if (!video) return;
-            const detected = await detectObject(
-              video,
-              objStrategy.targetLabel,
-            );
-            updateProgress(detected);
+
+            running = true;
+            try {
+              // Accept any of the configured target labels.
+              const results = await Promise.all(
+                validTargets.map((label) => detectObject(video, label)),
+              );
+              if (!cancelled.current) {
+                updateProgress(results.some(Boolean));
+              }
+            } finally {
+              running = false;
+            }
           }, 500);
         })
         .catch(() => {
-          clearTimeout(loadingTimeout);
+          clearTimeout(slowWarningTimeout);
+          if (cancelled.current) return;
           if (fallback) {
             onFallbackToColor();
             startColorDetection(fallback);
@@ -202,20 +228,24 @@ export function CameraTaskModal({
 
     const strategies = cameraTask.strategies;
 
-    const objStrategy = strategies.find(
+    const objStrategies = strategies.filter(
       (s): s is ObjectDetectionStrategy => s.type === "object",
-    ) ?? null;
+    );
     const colorStrategy = strategies.find(
       (s): s is ColorDetectionStrategy => s.type === "color",
     ) ?? null;
 
+    // cancelled.current lets async model-load continuations know the effect
+    // has been cleaned up so they skip any subsequent state updates.
+    const cancelled = { current: false };
+
     // Defer state updates to avoid synchronous setState-in-effect lint error
     const timerId = setTimeout(() => {
-      if (objStrategy) {
+      if (objStrategies.length > 0) {
         setActiveStrategy("loading");
-        startObjectDetection(objStrategy, colorStrategy, () => {
+        startObjectDetection(objStrategies, colorStrategy, () => {
           setActiveStrategy("color");
-        });
+        }, cancelled);
       } else if (colorStrategy) {
         setActiveStrategy("color");
         startColorDetection(colorStrategy);
@@ -225,6 +255,7 @@ export function CameraTaskModal({
     }, 0);
 
     return () => {
+      cancelled.current = true;
       clearTimeout(timerId);
       stopDetection();
     };
@@ -242,16 +273,15 @@ export function CameraTaskModal({
   const handlePrivacyAck = () => {
     localStorage.setItem(PRIVACY_NOTICE_KEY, "1");
     setPrivacyAcked(true);
-    startCamera();
+    // Camera will be started by the effect below once privacyAcked becomes true.
   };
 
   const handlePrivacySkip = () => {
     handleSkip();
   };
 
-  // Start camera on mount only if privacy was already acknowledged.
-  // The `hasMountedRef` guard ensures it runs exactly once regardless of
-  // how many times the component re-renders before the effect fires.
+  // Start camera on mount only if privacy was already acknowledged, or when
+  // the user first acknowledges privacy in this session.
   const hasMountedRef = useRef(false);
   useEffect(() => {
     if (!hasMountedRef.current && privacyAcked) {
