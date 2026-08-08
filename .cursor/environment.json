@@ -1,0 +1,16 @@
+{
+  "name": "EmoBuddy (Emotion Shards)",
+  "install": "npm ci",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "npm run dev -- --host"
+    }
+  ],
+  "ports": [
+    {
+      "name": "Vite dev server",
+      "port": 5173
+    }
+  ]
+}
