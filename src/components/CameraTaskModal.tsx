@@ -23,6 +23,8 @@ import type {
 const PRIVACY_NOTICE_KEY = "emobuddy_camera_privacy_ack";
 const MODEL_LOAD_TIMEOUT_MS = 10_000;
 const MISS_TOLERANCE_MS = 300;
+/** Maximum time (ms) to attempt color detection before falling back to manual */
+const COLOR_DETECTION_TIMEOUT_MS = 30_000;
 
 interface CameraTaskModalProps {
   cameraTask: CameraTask;
@@ -118,17 +120,37 @@ export function CameraTaskModal({
   // ─── Start color detection loop ────────────────────────────────────────────
 
   const startColorDetection = useCallback(
-    (colorStrategy: ColorDetectionStrategy) => {
+    (
+      colorStrategy: ColorDetectionStrategy,
+      nextStrategy: (() => void) | null,
+      cancelled: { current: boolean },
+    ) => {
       // Clear any existing interval before starting a new one
       if (detectionIntervalRef.current !== null) {
         clearInterval(detectionIntervalRef.current);
         detectionIntervalRef.current = null;
       }
+
+      const startedAt = Date.now();
       detectionIntervalRef.current = setInterval(() => {
+        if (cancelled.current) return;
         const video = videoRef.current;
         if (!video) return;
         const detected = isColorDetected(video, colorStrategy.target);
         updateProgress(detected);
+
+        // If no detection within the timeout, fall back to next strategy.
+        if (
+          !detected &&
+          nextStrategy !== null &&
+          Date.now() - startedAt > COLOR_DETECTION_TIMEOUT_MS
+        ) {
+          if (detectionIntervalRef.current !== null) {
+            clearInterval(detectionIntervalRef.current);
+            detectionIntervalRef.current = null;
+          }
+          nextStrategy();
+        }
       }, 150);
     },
     [updateProgress],
@@ -139,8 +161,7 @@ export function CameraTaskModal({
   const startObjectDetection = useCallback(
     (
       objStrategies: ObjectDetectionStrategy[],
-      fallback: ColorDetectionStrategy | null,
-      onFallbackToColor: () => void,
+      onFallback: (() => void) | null,
       cancelled: { current: boolean },
     ) => {
       // Filter to only supported labels; if none remain, fall back immediately.
@@ -149,9 +170,11 @@ export function CameraTaskModal({
         .filter((label) => SUPPORTED_OBJECT_CLASSES.has(label));
 
       if (validTargets.length === 0) {
-        if (fallback) {
-          onFallbackToColor();
-          startColorDetection(fallback);
+        // No supported object labels — transition to the next strategy right away.
+        if (onFallback) {
+          onFallback();
+        } else {
+          setActiveStrategy("manual");
         }
         return;
       }
@@ -200,6 +223,17 @@ export function CameraTaskModal({
               if (!cancelled.current) {
                 updateProgress(detected);
               }
+            } catch {
+              // Inference error: stop the interval and fall back to the next strategy.
+              if (detectionIntervalRef.current !== null) {
+                clearInterval(detectionIntervalRef.current);
+                detectionIntervalRef.current = null;
+              }
+              if (!cancelled.current && onFallback) {
+                onFallback();
+              } else if (!cancelled.current) {
+                setActiveStrategy("manual");
+              }
             } finally {
               running = false;
             }
@@ -208,15 +242,14 @@ export function CameraTaskModal({
         .catch(() => {
           clearTimeout(slowWarningTimeout);
           if (cancelled.current) return;
-          if (fallback) {
-            onFallbackToColor();
-            startColorDetection(fallback);
+          if (onFallback) {
+            onFallback();
           } else {
             setActiveStrategy("manual");
           }
         });
     },
-    [startColorDetection, updateProgress],
+    [updateProgress],
   );
 
   // ─── Attach stream to video element ───────────────────────────────────────
@@ -228,33 +261,81 @@ export function CameraTaskModal({
   }, [stream]);
 
   // ─── Start detection after stream is ready ────────────────────────────────
+  //
+  // Strategies are executed as an ordered fallback chain in the declared array
+  // order. We build the chain from the end so each step knows its successor.
 
   useEffect(() => {
     if (permissionState !== "granted" || !stream) return;
 
-    const strategies = cameraTask.strategies;
-
-    const objStrategies = strategies.filter(
-      (s): s is ObjectDetectionStrategy => s.type === "object",
-    );
-    const colorStrategy = strategies.find(
-      (s): s is ColorDetectionStrategy => s.type === "color",
-    ) ?? null;
-
-    // cancelled.current lets async model-load continuations know the effect
-    // has been cleaned up so they skip any subsequent state updates.
+    // cancelled.current lets async continuations know the effect has been
+    // cleaned up so they skip any subsequent state updates.
     const cancelled = { current: false };
 
-    // Defer state updates to avoid synchronous setState-in-effect lint error
-    const timerId = setTimeout(() => {
-      if (objStrategies.length > 0) {
-        setActiveStrategy("loading");
-        startObjectDetection(objStrategies, colorStrategy, () => {
+    // Build an ordered fallback chain from back to front.
+    // The last item in the chain has no successor (manual confirmation).
+    const strategies = cameraTask.strategies;
+
+    // Collect pending object strategies so we can dispatch them as a group
+    // (they share a single model-load pass and check all their labels).
+    let pendingObjStrategies: ObjectDetectionStrategy[] = [];
+
+    /**
+     * Builds a thunk that starts the strategy at `index`. When called it may
+     * immediately delegate to the next strategy in the chain.
+     */
+    const buildChain = (index: number): (() => void) | null => {
+      if (index >= strategies.length) return null;
+
+      const strategy = strategies[index];
+      const nextChain = buildChain(index + 1);
+
+      if (strategy.type === "manual") {
+        return () => {
+          if (!cancelled.current) setActiveStrategy("manual");
+        };
+      }
+
+      if (strategy.type === "color") {
+        return () => {
+          if (cancelled.current) return;
           setActiveStrategy("color");
-        }, cancelled);
-      } else if (colorStrategy) {
-        setActiveStrategy("color");
-        startColorDetection(colorStrategy);
+          startColorDetection(strategy, nextChain, cancelled);
+        };
+      }
+
+      if (strategy.type === "object") {
+        // Accumulate consecutive object strategies so they share one model load.
+        pendingObjStrategies.push(strategy);
+        // Only dispatch when we reach the last consecutive object strategy
+        // or the next one is a different type.
+        const nextStrategy = strategies[index + 1];
+        if (nextStrategy && nextStrategy.type === "object") {
+          // More object strategies follow — consume them first; this level just
+          // aggregates into pendingObjStrategies and delegates to the real dispatch.
+          return buildChain(index + 1);
+        }
+
+        // Last consecutive object strategy: capture the accumulated list.
+        const objGroup = [...pendingObjStrategies];
+        pendingObjStrategies = [];
+
+        return () => {
+          if (cancelled.current) return;
+          setActiveStrategy("loading");
+          startObjectDetection(objGroup, nextChain, cancelled);
+        };
+      }
+
+      return nextChain;
+    };
+
+    const startChain = buildChain(0);
+
+    // Defer state updates to avoid synchronous setState-in-effect lint error.
+    const timerId = setTimeout(() => {
+      if (startChain) {
+        startChain();
       } else {
         setActiveStrategy("manual");
       }
