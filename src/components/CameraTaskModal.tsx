@@ -18,10 +18,13 @@ import type {
   CameraDetectionStrategy,
   ColorDetectionStrategy,
   ObjectDetectionStrategy,
+  ManualDetectionStrategy,
 } from "../types";
 
 const PRIVACY_NOTICE_KEY = "emobuddy_camera_privacy_ack";
 const MODEL_LOAD_TIMEOUT_MS = 10_000;
+/** Wall-clock bound for a color-detection attempt before falling back. */
+const COLOR_ATTEMPT_TIMEOUT_MS = 15_000;
 const MISS_TOLERANCE_MS = 300;
 
 interface CameraTaskModalProps {
@@ -44,6 +47,7 @@ export function CameraTaskModal({
   const detectionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
+  const colorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const detectedSinceRef = useRef<number | null>(null);
   const lastDetectedAtRef = useRef<number | null>(null);
 
@@ -62,6 +66,10 @@ export function CameraTaskModal({
     if (detectionIntervalRef.current !== null) {
       clearInterval(detectionIntervalRef.current);
       detectionIntervalRef.current = null;
+    }
+    if (colorTimeoutRef.current !== null) {
+      clearTimeout(colorTimeoutRef.current);
+      colorTimeoutRef.current = null;
     }
     detectedSinceRef.current = null;
     lastDetectedAtRef.current = null;
@@ -118,18 +126,48 @@ export function CameraTaskModal({
   // ─── Start color detection loop ────────────────────────────────────────────
 
   const startColorDetection = useCallback(
-    (colorStrategy: ColorDetectionStrategy) => {
-      // Clear any existing interval before starting a new one
+    (
+      colorStrategy: ColorDetectionStrategy,
+      onFallback: () => void,
+      cancelled: { current: boolean },
+    ) => {
+      // Clear any existing interval / timeout before starting a new one
       if (detectionIntervalRef.current !== null) {
         clearInterval(detectionIntervalRef.current);
         detectionIntervalRef.current = null;
       }
+      if (colorTimeoutRef.current !== null) {
+        clearTimeout(colorTimeoutRef.current);
+        colorTimeoutRef.current = null;
+      }
+
+      // Reset progress streak when entering a new strategy.
+      detectedSinceRef.current = null;
+      lastDetectedAtRef.current = null;
+      setProgress(0);
+
       detectionIntervalRef.current = setInterval(() => {
+        if (cancelled.current) return;
         const video = videoRef.current;
         if (!video) return;
         const detected = isColorDetected(video, colorStrategy.target);
         updateProgress(detected);
       }, 150);
+
+      // Bounded attempt: if color never satisfies the threshold, fall through
+      // to the next configured strategy (Color → Manual).
+      colorTimeoutRef.current = setTimeout(() => {
+        if (cancelled.current) return;
+        if (detectionIntervalRef.current !== null) {
+          clearInterval(detectionIntervalRef.current);
+          detectionIntervalRef.current = null;
+        }
+        colorTimeoutRef.current = null;
+        detectedSinceRef.current = null;
+        lastDetectedAtRef.current = null;
+        setProgress(0);
+        onFallback();
+      }, COLOR_ATTEMPT_TIMEOUT_MS);
     },
     [updateProgress],
   );
@@ -139,8 +177,7 @@ export function CameraTaskModal({
   const startObjectDetection = useCallback(
     (
       objStrategies: ObjectDetectionStrategy[],
-      fallback: ColorDetectionStrategy | null,
-      onFallbackToColor: () => void,
+      onFallback: () => void,
       cancelled: { current: boolean },
     ) => {
       // Filter to only supported labels; if none remain, fall back immediately.
@@ -149,10 +186,9 @@ export function CameraTaskModal({
         .filter((label) => SUPPORTED_OBJECT_CLASSES.has(label));
 
       if (validTargets.length === 0) {
-        if (fallback) {
-          onFallbackToColor();
-          startColorDetection(fallback);
-        }
+        // Caller may have set activeStrategy to "loading"; always leave that
+        // state by advancing to the next configured strategy.
+        onFallback();
         return;
       }
 
@@ -160,14 +196,22 @@ export function CameraTaskModal({
         if (!cancelled.current) setModelLoadingSlow(true);
       }, MODEL_LOAD_TIMEOUT_MS);
 
-      // Race model load against the same MODEL_LOAD_TIMEOUT_MS threshold.
-      const loadTimeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("timeout")), MODEL_LOAD_TIMEOUT_MS),
-      );
+      let loadTimerId: ReturnType<typeof setTimeout> | null = null;
+      const loadTimeout = new Promise<never>((_, reject) => {
+        loadTimerId = setTimeout(
+          () => reject(new Error("timeout")),
+          MODEL_LOAD_TIMEOUT_MS,
+        );
+      });
+
+      const clearLoadTimers = () => {
+        clearTimeout(slowWarningTimeout);
+        if (loadTimerId !== null) clearTimeout(loadTimerId);
+      };
 
       Promise.race([loadCocoSsd(), loadTimeout])
         .then(() => {
-          clearTimeout(slowWarningTimeout);
+          clearLoadTimers();
           if (cancelled.current) return;
 
           // Clear any existing interval before starting a new one
@@ -175,13 +219,33 @@ export function CameraTaskModal({
             clearInterval(detectionIntervalRef.current);
             detectionIntervalRef.current = null;
           }
-          setActiveStrategy("object");
 
-          // Serialize inference: schedule the next tick only after the
-          // previous one has finished, so a busy run is never counted as a miss.
+          detectedSinceRef.current = null;
+          lastDetectedAtRef.current = null;
+          setProgress(0);
+          setActiveStrategy("object");
+          setModelLoadingSlow(false);
+
+          // Serialize inference: skip ticks while a previous run is still
+          // in flight so a busy run is never counted as a miss.
           let running = false;
+          let fellBack = false;
+
+          const fallbackFromInference = () => {
+            if (fellBack || cancelled.current) return;
+            fellBack = true;
+            if (detectionIntervalRef.current !== null) {
+              clearInterval(detectionIntervalRef.current);
+              detectionIntervalRef.current = null;
+            }
+            detectedSinceRef.current = null;
+            lastDetectedAtRef.current = null;
+            setProgress(0);
+            onFallback();
+          };
+
           detectionIntervalRef.current = setInterval(async () => {
-            if (running || cancelled.current) return;
+            if (running || cancelled.current || fellBack) return;
             const video = videoRef.current;
             if (!video) return;
 
@@ -197,26 +261,84 @@ export function CameraTaskModal({
                   break;
                 }
               }
-              if (!cancelled.current) {
+              if (!cancelled.current && !fellBack) {
                 updateProgress(detected);
               }
+            } catch {
+              // Inference failures must follow the degradation chain rather
+              // than leaving the UI stuck in object mode with unhandled
+              // rejections.
+              fallbackFromInference();
             } finally {
               running = false;
             }
           }, 500);
         })
         .catch(() => {
-          clearTimeout(slowWarningTimeout);
+          clearLoadTimers();
           if (cancelled.current) return;
-          if (fallback) {
-            onFallbackToColor();
-            startColorDetection(fallback);
-          } else {
-            setActiveStrategy("manual");
-          }
+          onFallback();
         });
     },
-    [startColorDetection, updateProgress],
+    [updateProgress],
+  );
+
+  // ─── Ordered strategy chain ───────────────────────────────────────────────
+  //
+  // Walks `cameraTask.strategies` in array order. Consecutive object entries
+  // are OR'd together (e.g. book | cup), then the chain advances past that
+  // block on failure/timeout. Color has a bounded attempt window. Manual (or
+  // end-of-list) is the terminal state.
+
+  const startStrategyAt = useCallback(
+    (
+      strategies: CameraDetectionStrategy[],
+      index: number,
+      cancelled: { current: boolean },
+    ) => {
+      if (cancelled.current) return;
+
+      if (index >= strategies.length) {
+        setActiveStrategy("manual");
+        return;
+      }
+
+      const strategy = strategies[index];
+
+      if (strategy.type === "manual") {
+        setActiveStrategy("manual");
+        return;
+      }
+
+      if (strategy.type === "color") {
+        setActiveStrategy("color");
+        startColorDetection(
+          strategy,
+          () => startStrategyAt(strategies, index + 1, cancelled),
+          cancelled,
+        );
+        return;
+      }
+
+      // type === "object": collect consecutive object strategies as OR targets
+      const objStrategies: ObjectDetectionStrategy[] = [];
+      let nextIndex = index;
+      while (
+        nextIndex < strategies.length &&
+        strategies[nextIndex].type === "object"
+      ) {
+        objStrategies.push(strategies[nextIndex] as ObjectDetectionStrategy);
+        nextIndex += 1;
+      }
+
+      setActiveStrategy("loading");
+      startObjectDetection(
+        objStrategies,
+        () => startStrategyAt(strategies, nextIndex, cancelled),
+        cancelled,
+      );
+    },
+    [startColorDetection, startObjectDetection],
   );
 
   // ─── Attach stream to video element ───────────────────────────────────────
@@ -234,30 +356,13 @@ export function CameraTaskModal({
 
     const strategies = cameraTask.strategies;
 
-    const objStrategies = strategies.filter(
-      (s): s is ObjectDetectionStrategy => s.type === "object",
-    );
-    const colorStrategy = strategies.find(
-      (s): s is ColorDetectionStrategy => s.type === "color",
-    ) ?? null;
-
     // cancelled.current lets async model-load continuations know the effect
     // has been cleaned up so they skip any subsequent state updates.
     const cancelled = { current: false };
 
     // Defer state updates to avoid synchronous setState-in-effect lint error
     const timerId = setTimeout(() => {
-      if (objStrategies.length > 0) {
-        setActiveStrategy("loading");
-        startObjectDetection(objStrategies, colorStrategy, () => {
-          setActiveStrategy("color");
-        }, cancelled);
-      } else if (colorStrategy) {
-        setActiveStrategy("color");
-        startColorDetection(colorStrategy);
-      } else {
-        setActiveStrategy("manual");
-      }
+      startStrategyAt(strategies, 0, cancelled);
     }, 0);
 
     return () => {
@@ -269,8 +374,7 @@ export function CameraTaskModal({
     permissionState,
     stream,
     cameraTask.strategies,
-    startObjectDetection,
-    startColorDetection,
+    startStrategyAt,
     stopDetection,
   ]);
 
@@ -306,7 +410,7 @@ export function CameraTaskModal({
   };
 
   const manualStrategy = cameraTask.strategies.find(
-    (s): s is { type: "manual"; instruction: string } => s.type === "manual",
+    (s): s is ManualDetectionStrategy => s.type === "manual",
   );
   const colorStrategy = cameraTask.strategies.find(
     (s): s is ColorDetectionStrategy => s.type === "color",
@@ -419,8 +523,8 @@ export function CameraTaskModal({
                   left: "50%",
                   width: "30%",
                   height: "30%",
-                  transform: "translate(-50%, -50%)",
                   boxShadow: "0 0 0 1000px rgba(0,0,0,0.3)",
+                  transform: "translate(-50%, -50%)",
                 }}
               />
             )}
