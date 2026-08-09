@@ -38,11 +38,26 @@ function hueInRanges(hue: number, ranges: Array<[number, number]>): boolean {
   return false;
 }
 
-const ROI_SIZE = 64; // px — central square to sample
+const ANALYSIS_SIZE = 64; // px — the ROI crop is downscaled to this for analysis
 
 /**
- * Captures a central ROI from a <video> element via an offscreen canvas,
+ * The preview container in CameraTaskModal uses `aspect-video` (16:9) with the
+ * video rendered `object-cover`, and the yellow ROI overlay is a centered box
+ * 30% of the container in each dimension.
+ */
+const PREVIEW_ASPECT = 16 / 9;
+const ROI_FRACTION = 0.3;
+
+/**
+ * Captures the on-screen ROI from a <video> element via an offscreen canvas,
  * then returns the fraction of pixels matching the HSL target.
+ *
+ * The crop is computed to match what the user actually sees inside the yellow
+ * box: first the region of the source frame that is visible under
+ * `object-fit: cover` for a 16:9 container, then the centered 30% of that
+ * region. That crop is downscaled to ANALYSIS_SIZE for per-pixel analysis, so
+ * an object clearly inside the yellow box is sampled regardless of the source
+ * resolution.
  */
 export function analyzeColorInVideo(
   video: HTMLVideoElement,
@@ -52,26 +67,49 @@ export function analyzeColorInVideo(
   if (!videoWidth || !videoHeight) return 0;
 
   const canvas = document.createElement("canvas");
-  canvas.width = ROI_SIZE;
-  canvas.height = ROI_SIZE;
+  canvas.width = ANALYSIS_SIZE;
+  canvas.height = ANALYSIS_SIZE;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) return 0;
 
-  const sx = Math.max(0, (videoWidth - ROI_SIZE) / 2);
-  const sy = Math.max(0, (videoHeight - ROI_SIZE) / 2);
+  // Region of the source frame that is actually visible under object-cover.
+  let visibleW = videoWidth;
+  let visibleH = videoHeight;
+  if (videoWidth / videoHeight > PREVIEW_ASPECT) {
+    // Source is wider than the container: left/right are cropped off-screen.
+    visibleW = videoHeight * PREVIEW_ASPECT;
+  } else {
+    // Source is taller/narrower: top/bottom are cropped off-screen.
+    visibleH = videoWidth / PREVIEW_ASPECT;
+  }
 
-  ctx.drawImage(video, sx, sy, ROI_SIZE, ROI_SIZE, 0, 0, ROI_SIZE, ROI_SIZE);
+  const cropW = Math.max(1, Math.round(visibleW * ROI_FRACTION));
+  const cropH = Math.max(1, Math.round(visibleH * ROI_FRACTION));
+  const sx = Math.max(0, Math.round((videoWidth - cropW) / 2));
+  const sy = Math.max(0, Math.round((videoHeight - cropH) / 2));
+
+  ctx.drawImage(
+    video,
+    sx,
+    sy,
+    cropW,
+    cropH,
+    0,
+    0,
+    ANALYSIS_SIZE,
+    ANALYSIS_SIZE,
+  );
 
   let imageData: ImageData;
   try {
-    imageData = ctx.getImageData(0, 0, ROI_SIZE, ROI_SIZE);
+    imageData = ctx.getImageData(0, 0, ANALYSIS_SIZE, ANALYSIS_SIZE);
   } catch {
     // Cross-origin guard (shouldn't happen with local camera, but be safe)
     return 0;
   }
 
   const { data } = imageData;
-  const totalPixels = ROI_SIZE * ROI_SIZE;
+  const totalPixels = ANALYSIS_SIZE * ANALYSIS_SIZE;
   let matched = 0;
 
   for (let i = 0; i < data.length; i += 4) {

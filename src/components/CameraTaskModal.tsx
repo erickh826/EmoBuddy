@@ -31,6 +31,13 @@ const MODEL_LOAD_TIMEOUT_MS = 10_000;
 const MODEL_SLOW_WARNING_MS = 4_000;
 /** Wall-clock bound for a color-detection attempt before falling back. */
 const COLOR_ATTEMPT_TIMEOUT_MS = 15_000;
+/**
+ * Wall-clock bound for an object-detection attempt (after the model has
+ * loaded) before falling back to the next strategy. Without this, a task
+ * whose target is never found would stay in object mode indefinitely and
+ * never reach the configured manual fallback.
+ */
+const OBJECT_ATTEMPT_TIMEOUT_MS = 15_000;
 const MISS_TOLERANCE_MS = 300;
 
 interface CameraTaskModalProps {
@@ -54,6 +61,7 @@ export function CameraTaskModal({
     null,
   );
   const colorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const objectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const detectedSinceRef = useRef<number | null>(null);
   const lastDetectedAtRef = useRef<number | null>(null);
 
@@ -76,6 +84,10 @@ export function CameraTaskModal({
     if (colorTimeoutRef.current !== null) {
       clearTimeout(colorTimeoutRef.current);
       colorTimeoutRef.current = null;
+    }
+    if (objectTimeoutRef.current !== null) {
+      clearTimeout(objectTimeoutRef.current);
+      objectTimeoutRef.current = null;
     }
     detectedSinceRef.current = null;
     lastDetectedAtRef.current = null;
@@ -244,11 +256,23 @@ export function CameraTaskModal({
               clearInterval(detectionIntervalRef.current);
               detectionIntervalRef.current = null;
             }
+            if (objectTimeoutRef.current !== null) {
+              clearTimeout(objectTimeoutRef.current);
+              objectTimeoutRef.current = null;
+            }
             detectedSinceRef.current = null;
             lastDetectedAtRef.current = null;
             setProgress(0);
             onFallback();
           };
+
+          // Bounded attempt: if the target is never detected, advance to the
+          // next configured strategy (e.g. Object → Manual) instead of
+          // staying in object mode indefinitely. Cleared on completion via
+          // stopDetection, on cleanup, and on inference failure.
+          objectTimeoutRef.current = setTimeout(() => {
+            fallbackFromInference();
+          }, OBJECT_ATTEMPT_TIMEOUT_MS);
 
           detectionIntervalRef.current = setInterval(async () => {
             if (running || cancelled.current || fellBack) return;
