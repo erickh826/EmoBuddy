@@ -23,6 +23,12 @@ import type {
 
 const PRIVACY_NOTICE_KEY = "emobuddy_camera_privacy_ack";
 const MODEL_LOAD_TIMEOUT_MS = 10_000;
+/**
+ * Show the "loading is slow" hint well before the hard timeout so it is
+ * actually visible; otherwise it would fire at the same instant the model
+ * load times out and falls back, and never be seen.
+ */
+const MODEL_SLOW_WARNING_MS = 4_000;
 /** Wall-clock bound for a color-detection attempt before falling back. */
 const COLOR_ATTEMPT_TIMEOUT_MS = 15_000;
 const MISS_TOLERANCE_MS = 300;
@@ -194,7 +200,7 @@ export function CameraTaskModal({
 
       const slowWarningTimeout = setTimeout(() => {
         if (!cancelled.current) setModelLoadingSlow(true);
-      }, MODEL_LOAD_TIMEOUT_MS);
+      }, MODEL_SLOW_WARNING_MS);
 
       let loadTimerId: ReturnType<typeof setTimeout> | null = null;
       const loadTimeout = new Promise<never>((_, reject) => {
@@ -277,6 +283,7 @@ export function CameraTaskModal({
         .catch(() => {
           clearLoadTimers();
           if (cancelled.current) return;
+          setModelLoadingSlow(false);
           onFallback();
         });
     },
