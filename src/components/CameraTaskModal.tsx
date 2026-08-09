@@ -38,7 +38,10 @@ const COLOR_ATTEMPT_TIMEOUT_MS = 15_000;
  * never reach the configured manual fallback.
  */
 const OBJECT_ATTEMPT_TIMEOUT_MS = 15_000;
-const MISS_TOLERANCE_MS = 300;
+/** Must exceed the effective detection interval (~1000 ms when scanning 2 labels
+ *  sequentially at 500-ms ticks) so a single false-negative detection never
+ *  resets the accumulated progress. */
+const MISS_TOLERANCE_MS = 1500;
 
 interface CameraTaskModalProps {
   cameraTask: CameraTask;
@@ -377,6 +380,13 @@ export function CameraTaskModal({
   useEffect(() => {
     if (stream && videoRef.current) {
       videoRef.current.srcObject = stream;
+      // Explicit play() is required on mobile browsers — the autoPlay HTML
+      // attribute alone will not reliably start camera stream playback.
+      videoRef.current.play().catch(() => {
+        // iOS Safari may reject play() without user gesture even with
+        // playsInline + muted; we swallow the error so the fallback chain
+        // (object → color → manual) can still proceed.
+      });
     }
   }, [stream]);
 
