@@ -39,14 +39,15 @@ function DPadButton({
       aria-label={label}
       className={`
         flex items-center justify-center
-        w-14 h-14 rounded-2xl
-        border-2 transition-all duration-100
+        w-16 h-16 rounded-full
+        transition-all duration-100
         active:scale-90 select-none touch-none
-        ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}
+        ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:brightness-105"}
       `}
       style={{
-        backgroundColor: `${accentColor}1a`,
-        borderColor: accentColor,
+        backgroundColor: accentColor,
+        border: "3px solid rgba(255, 255, 255, 0.7)",
+        boxShadow: "0 4px 0 rgba(0, 0, 0, 0.15), 0 8px 16px rgba(0, 0, 0, 0.12)",
       }}
       onPointerDown={handlePress}
       disabled={disabled}
@@ -58,7 +59,7 @@ function DPadButton({
 
 export function DirectionPad({ onMove, disabled, theme }: DirectionPadProps) {
   const accentColor = theme?.accentColor ?? "#94a3b8";
-  const iconColor = accentColor;
+  const iconColor = "#ffffff";
 
   const handleClick = useCallback(
     (direction: Direction) => {
@@ -78,26 +79,26 @@ export function DirectionPad({ onMove, disabled, theme }: DirectionPadProps) {
       <DPadButton
         {...btnProps}
         direction="up"
-        icon={<ChevronUp className="w-6 h-6" style={{ color: iconColor }} />}
+        icon={<ChevronUp className="w-7 h-7" strokeWidth={3} style={{ color: iconColor }} />}
         label="向上移動"
       />
       <div className="flex gap-2">
         <DPadButton
           {...btnProps}
           direction="left"
-          icon={<ChevronLeft className="w-6 h-6" style={{ color: iconColor }} />}
+          icon={<ChevronLeft className="w-7 h-7" strokeWidth={3} style={{ color: iconColor }} />}
           label="向左移動"
         />
         <DPadButton
           {...btnProps}
           direction="down"
-          icon={<ChevronDown className="w-6 h-6" style={{ color: iconColor }} />}
+          icon={<ChevronDown className="w-7 h-7" strokeWidth={3} style={{ color: iconColor }} />}
           label="向下移動"
         />
         <DPadButton
           {...btnProps}
           direction="right"
-          icon={<ChevronRight className="w-6 h-6" style={{ color: iconColor }} />}
+          icon={<ChevronRight className="w-7 h-7" strokeWidth={3} style={{ color: iconColor }} />}
           label="向右移動"
         />
       </div>

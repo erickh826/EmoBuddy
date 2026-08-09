@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LevelConfig, GameState, Direction } from "../types";
 import { DirectionPad } from "./DirectionPad";
 import "../themes/themes.css";
@@ -7,10 +7,10 @@ import "../themes/themes.css";
 import floorHappyGarden from "../assets/tiles/floor_happy_garden.png";
 import floorCalmForest from "../assets/tiles/floor_calm_forest.png";
 import floorBraveHills from "../assets/tiles/floor_brave_hills.png";
+import borderStone from "../assets/tiles/border_stone.png";
 import wallFlowerBush from "../assets/tiles/wall_flower_bush.png";
 import wallTreeStump from "../assets/tiles/wall_tree_stump.png";
 import wallRock from "../assets/tiles/wall_rock.png";
-import borderStone from "../assets/tiles/border_stone.png";
 
 // --- Sprite images ---
 import playerDown from "../assets/sprites/player_down.png";
@@ -22,7 +22,7 @@ import shardGreen from "../assets/sprites/shard_green.png";
 import shardOrange from "../assets/sprites/shard_orange.png";
 import npcFox from "../assets/sprites/npc_fox.png";
 
-// --- Tile lookup maps ---
+// --- Tile lookup maps (keyed by theme.id) ---
 const floorTileMap: Record<string, string> = {
   "happy-garden": floorHappyGarden,
   "calm-forest": floorCalmForest,
@@ -49,22 +49,91 @@ interface GameBoardProps {
   level: LevelConfig;
   state: GameState;
   onMove: (direction: Direction) => void;
+  totalLevels?: number;
 }
 
-function getCellType(row: number, col: number, grid: number[][], gridSize: number): "floor" | "wall" | "border" {
+function getCellType(
+  row: number,
+  col: number,
+  grid: number[][],
+  gridSize: number
+): "floor" | "wall" | "border" {
   if (row === 0 || col === 0 || row === gridSize - 1 || col === gridSize - 1) {
     return "border";
   }
   return grid[row][col] === 1 ? "wall" : "floor";
 }
 
-export function GameBoard({ level, state, onMove }: GameBoardProps) {
+export function GameBoard({
+  level,
+  state,
+  onMove,
+  totalLevels = 3,
+}: GameBoardProps) {
   const theme = level.theme;
   const grid = level.grid;
   const rows = grid.length;
   const cols = grid[0].length;
   const { playerPosition, playerDirection } = state;
   const isPlaying = state.phase === "playing";
+
+  // --- Screen reader announcements ---
+  const DIRECTION_LABELS: Record<Direction, string> = {
+    up: "上",
+    down: "下",
+    left: "左",
+    right: "右",
+  };
+
+  const prevPositionRef = useRef<{ row: number; col: number } | null>(null);
+  const moveAttemptedRef = useRef(false);
+  const [announcement, setAnnouncement] = useState("");
+
+  useEffect(() => {
+    const prev = prevPositionRef.current;
+
+    if (!prev) {
+      // Initial load: describe the game and its objective
+      const objective =
+        level.objectiveType === "collect-shard"
+          ? "找到發光的碎片"
+          : "找到夥伴";
+      setAnnouncement(
+        `${level.title} 地圖已載入，使用方向鍵移動角色。目標：${objective}`
+      );
+      prevPositionRef.current = { ...playerPosition };
+      return;
+    }
+
+    const moved =
+      prev.row !== playerPosition.row || prev.col !== playerPosition.col;
+
+    if (moved) {
+      const dirLabel = DIRECTION_LABELS[playerDirection] ?? "";
+      let msg = `向${dirLabel}移動，第 ${playerPosition.row + 1} 行第 ${playerPosition.col + 1} 列`;
+
+      // Check if player reached the objective
+      const isOnShard =
+        level.objectiveType === "collect-shard" &&
+        level.shard?.position.row === playerPosition.row &&
+        level.shard?.position.col === playerPosition.col;
+      const isOnNpc =
+        level.objectiveType === "interact-with-npc" &&
+        level.npc?.position.row === playerPosition.row &&
+        level.npc?.position.col === playerPosition.col;
+
+      if (isOnShard) msg += "，找到碎片！";
+      if (isOnNpc) msg += "，找到夥伴！";
+
+      setAnnouncement(msg);
+    } else if (moveAttemptedRef.current) {
+      // Position didn't change despite a move attempt → blocked by wall
+      setAnnouncement("前方有障礙物，無法移動");
+    }
+
+    moveAttemptedRef.current = false;
+    prevPositionRef.current = { ...playerPosition };
+  }, [playerPosition, playerDirection, level]);
 
   const handleKeyboard = useCallback(
     (e: React.KeyboardEvent) => {
@@ -76,17 +145,18 @@ export function GameBoard({ level, state, onMove }: GameBoardProps) {
         ArrowRight: "right",
         w: "up",
         W: "up",
-        s: "down",
-        S: "down",
         a: "left",
         A: "left",
+        s: "down",
+        S: "down",
         d: "right",
         D: "right",
       };
-      const dir = keyMap[e.key];
-      if (dir) {
+      const direction = keyMap[e.key];
+      if (direction) {
         e.preventDefault();
-        onMove(dir);
+        moveAttemptedRef.current = true;
+        onMove(direction);
       }
     },
     [isPlaying, onMove]
@@ -98,121 +168,153 @@ export function GameBoard({ level, state, onMove }: GameBoardProps) {
   const playerSprite = playerSpriteMap[playerDirection];
 
   return (
-    <div className="flex flex-col items-center gap-6 p-4" style={{ backgroundColor: theme.backgroundColor }}>
-      {/* Title bar */}
-      <div className="w-full max-w-lg text-center">
-        <p className="text-sm font-medium opacity-60" style={{ color: theme.textColor }}>
-          第 {level.id} 關
-        </p>
-        <h2
-          className="text-2xl font-bold mt-1"
-          style={{ color: theme.textColor }}
-        >
-          {level.title}
-        </h2>
-      </div>
-
-      {/* 2.5D Game Grid */}
-      <div
-        className="game-grid"
-        tabIndex={0}
-        onKeyDown={handleKeyboard}
-        style={{
-          outline: "none",
-          gridTemplateColumns: `repeat(${cols}, 1fr)`,
-          gridTemplateRows: `repeat(${rows}, 1fr)`,
-        }}
-      >
-        {grid.map((row, r) =>
-          row.map((_, c) => {
-            const cellType = getCellType(r, c, grid, grid.length);
-            const isPlayer = playerPosition.row === r && playerPosition.col === c;
-            const isShard =
-              level.objectiveType === "collect-shard" &&
-              level.shard?.position.row === r &&
-              level.shard?.position.col === c;
-            const isNpc =
-              level.objectiveType === "interact-with-npc" &&
-              level.npc?.position.row === r &&
-              level.npc?.position.col === c;
-
-            const cellClass =
-              cellType === "border"
-                ? "cell-border"
-                : cellType === "wall"
-                  ? "cell-wall"
-                  : "cell-floor";
-
-            return (
-              <div
-                key={`${r}-${c}`}
-                className={`grid-cell ${cellClass}`}
-                style={{
-                  ...(cellType === "floor"
-                    ? { backgroundImage: `url(${floorImg})`, backgroundSize: "cover", backgroundPosition: "center" }
-                    : cellType === "wall"
-                      ? {
-                          backgroundImage: `url(${wallImg})`,
-                          backgroundSize: "cover",
-                          backgroundPosition: "center",
-                          boxShadow: `1px 1px 0 ${theme.wallHighlight}, 4px 4px 0 ${theme.wallSide}, 5px 5px 0 rgba(0,0,0,0.12)`,
-                        }
-                      : cellType === "border"
-                        ? {
-                            backgroundImage: `url(${borderStone})`,
-                            backgroundSize: "cover",
-                            backgroundPosition: "center",
-                            boxShadow: `1px 1px 0 rgba(255,255,255,0.1), 4px 4px 0 ${theme.borderSide}, 5px 5px 0 rgba(0,0,0,0.18)`,
-                          }
-                        : undefined),
-                }}
+    <div className={`flex flex-col items-center gap-5 theme-${theme.id}`}>
+      {/* Scene frame: sky band + seamless board */}
+      <div className="scene-frame">
+        <div className="scene-sky">
+          <div
+            className="scene-cloud"
+            style={{ width: 90, height: 26, top: 10, left: "12%" }}
+          />
+          <div
+            className="scene-cloud cloud-2"
+            style={{ width: 64, height: 20, bottom: 8, right: "16%" }}
+          />
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <span
+                className="shrink-0 inline-flex items-center rounded-full px-3 py-1 text-sm font-bold text-white shadow-sm"
+                style={{ backgroundColor: theme.accentColor }}
               >
-                {/* Player */}
-                {isPlayer && (
-                  <div
-                    className={`player-sprite dir-${playerDirection}`}
-                    style={{
-                      backgroundImage: `url(${playerSprite})`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                      boxShadow: `0 4px 0 rgba(0,0,0,0.2), 0 6px 12px rgba(0,0,0,0.15)`,
-                    }}
-                  />
-                )}
+                第 {level.id} 關
+              </span>
+              <h2
+                className="font-display text-2xl leading-tight truncate"
+                style={{ color: theme.textColor }}
+              >
+                {level.title}
+              </h2>
+            </div>
 
-                {/* Shard */}
-                {isShard && !isPlayer && (
-                  <div
-                    className={`shard-sprite ${state.reducedMotion ? "" : "shard-animate"}`}
-                    style={{
-                      backgroundImage: `url(${shardSprite})`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                      boxShadow: theme.shardGlow,
-                    }}
+            {/* Level progress dots */}
+            <div
+              className="flex items-center gap-1.5 shrink-0"
+              role="img"
+              aria-label={`關卡進度 ${level.id} / ${totalLevels}`}
+            >
+              {Array.from({ length: totalLevels }).map((_, i) => {
+                const done = i < level.id - 1;
+                const current = i === level.id - 1;
+                return (
+                  <span
+                    key={i}
+                    className={`shard-pip${done ? " done" : ""}${current ? " current" : ""}`}
+                    style={
+                      done || current
+                        ? { backgroundColor: theme.accentColor }
+                        : undefined
+                    }
                   />
-                )}
+                );
+              })}
+            </div>
+          </div>
+        </div>
 
-                {/* NPC */}
-                {isNpc && !isPlayer && (
-                  <div
-                    className="npc-sprite"
-                    style={{
-                      backgroundImage: `url(${npcFox})`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                      boxShadow: `0 3px 0 rgba(180,83,9,0.3), 0 5px 10px rgba(180,83,9,0.15)`,
-                    }}
-                  />
-                )}
-              </div>
-            );
-          })
-        )}
+        {/* Screen reader live region for game-state announcements */}
+        <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {announcement}
+        </div>
+
+        {/* 2.5D Game Grid */}
+        <div
+          className="game-grid"
+          role="application"
+          aria-label={`${level.title} 遊戲地圖`}
+          tabIndex={0}
+          onKeyDown={handleKeyboard}
+          style={{
+            outline: "none",
+            gridTemplateColumns: `repeat(${cols}, 1fr)`,
+            gridTemplateRows: `repeat(${rows}, 1fr)`,
+          }}
+        >
+          {grid.map((row, r) =>
+            row.map((_, c) => {
+              const cellType = getCellType(r, c, grid, grid.length);
+              const isPlayer =
+                playerPosition.row === r && playerPosition.col === c;
+              const isShard =
+                level.objectiveType === "collect-shard" &&
+                level.shard?.position.row === r &&
+                level.shard?.position.col === c;
+              const isNpc =
+                level.objectiveType === "interact-with-npc" &&
+                level.npc?.position.row === r &&
+                level.npc?.position.col === c;
+
+              const cellClass =
+                cellType === "border"
+                  ? "cell-border"
+                  : cellType === "wall"
+                    ? "cell-wall"
+                    : "cell-floor";
+
+              const cellImage =
+                cellType === "border"
+                  ? borderStone
+                  : cellType === "wall"
+                    ? wallImg
+                    : floorImg;
+
+              const cellBackground =
+                cellType === "wall"
+                  ? `url(${wallImg}), url(${floorImg})`
+                  : `url(${cellImage})`;
+
+              return (
+                <div
+                  key={`${r}-${c}`}
+                  className={`grid-cell ${cellClass}`}
+                  style={{ backgroundImage: cellBackground }}
+                  data-row={r}
+                  data-col={c}
+                >
+                  {/* Player */}
+                  {isPlayer && (
+                    <div
+                      className={`player-sprite${isPlaying && !state.reducedMotion ? " player-idle" : ""}`}
+                      style={{ backgroundImage: `url(${playerSprite})` }}
+                    />
+                  )}
+
+                  {/* Shard */}
+                  {isShard && !isPlayer && (
+                    <div
+                      className={`shard-sprite${isPlaying && !state.reducedMotion ? " shard-animate" : ""}`}
+                      style={{ backgroundImage: `url(${shardSprite})` }}
+                    />
+                  )}
+
+                  {/* NPC */}
+                  {isNpc && !isPlayer && (
+                    <div
+                      className="npc-sprite"
+                      style={{ backgroundImage: `url(${npcFox})` }}
+                    />
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* Objective hint */}
-      <p className="text-sm font-medium" style={{ color: theme.textColor, opacity: 0.7 }}>
+      <p
+        className="text-sm font-medium"
+        style={{ color: theme.textColor, opacity: 0.7 }}
+      >
         {level.objectiveType === "collect-shard"
           ? "找到發光的碎片！"
           : "找到夥伴！"}
