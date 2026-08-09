@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LevelConfig, GameState, Direction } from "../types";
 import { DirectionPad } from "./DirectionPad";
 import "../themes/themes.css";
@@ -77,6 +77,64 @@ export function GameBoard({
   const { playerPosition, playerDirection } = state;
   const isPlaying = state.phase === "playing";
 
+  // --- Screen reader announcements ---
+  const DIRECTION_LABELS: Record<Direction, string> = {
+    up: "上",
+    down: "下",
+    left: "左",
+    right: "右",
+  };
+
+  const prevPositionRef = useRef<{ row: number; col: number } | null>(null);
+  const moveAttemptedRef = useRef(false);
+  const [announcement, setAnnouncement] = useState("");
+
+  useEffect(() => {
+    const prev = prevPositionRef.current;
+
+    if (!prev) {
+      // Initial load: describe the game and its objective
+      const objective =
+        level.objectiveType === "collect-shard"
+          ? "找到發光的碎片"
+          : "找到夥伴";
+      setAnnouncement(
+        `${level.title} 地圖已載入，使用方向鍵移動角色。目標：${objective}`
+      );
+      prevPositionRef.current = { ...playerPosition };
+      return;
+    }
+
+    const moved =
+      prev.row !== playerPosition.row || prev.col !== playerPosition.col;
+
+    if (moved) {
+      const dirLabel = DIRECTION_LABELS[playerDirection] ?? "";
+      let msg = `向${dirLabel}移動，第 ${playerPosition.row + 1} 行第 ${playerPosition.col + 1} 列`;
+
+      // Check if player reached the objective
+      const isOnShard =
+        level.objectiveType === "collect-shard" &&
+        level.shard?.position.row === playerPosition.row &&
+        level.shard?.position.col === playerPosition.col;
+      const isOnNpc =
+        level.objectiveType === "interact-with-npc" &&
+        level.npc?.position.row === playerPosition.row &&
+        level.npc?.position.col === playerPosition.col;
+
+      if (isOnShard) msg += "，找到碎片！";
+      if (isOnNpc) msg += "，找到夥伴！";
+
+      setAnnouncement(msg);
+    } else if (moveAttemptedRef.current) {
+      // Position didn't change despite a move attempt → blocked by wall
+      setAnnouncement("前方有障礙物，無法移動");
+    }
+
+    moveAttemptedRef.current = false;
+    prevPositionRef.current = { ...playerPosition };
+  }, [playerPosition, playerDirection, level]);
+
   const handleKeyboard = useCallback(
     (e: React.KeyboardEvent) => {
       if (!isPlaying) return;
@@ -97,6 +155,7 @@ export function GameBoard({
       const direction = keyMap[e.key];
       if (direction) {
         e.preventDefault();
+        moveAttemptedRef.current = true;
         onMove(direction);
       }
     },
@@ -162,6 +221,11 @@ export function GameBoard({
           </div>
         </div>
 
+        {/* Screen reader live region for game-state announcements */}
+        <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+          {announcement}
+        </div>
+
         {/* 2.5D Game Grid */}
         <div
           className="game-grid"
@@ -203,11 +267,16 @@ export function GameBoard({
                     ? wallImg
                     : floorImg;
 
+              const cellBackground =
+                cellType === "wall"
+                  ? `url(${wallImg}), url(${floorImg})`
+                  : `url(${cellImage})`;
+
               return (
                 <div
                   key={`${r}-${c}`}
                   className={`grid-cell ${cellClass}`}
-                  style={{ backgroundImage: `url(${cellImage})` }}
+                  style={{ backgroundImage: cellBackground }}
                   data-row={r}
                   data-col={c}
                 >

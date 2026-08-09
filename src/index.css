@@ -92,17 +92,35 @@
 }
 
 /* ---- Level complete celebration (ASD-friendly: slow, soft, no flashing) ---- */
-@media (prefers-reduced-motion: no-preference) {
-  .star-pop {
-    animation: star-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
-  }
+.star-pop {
+  animation: star-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+.reward-float {
+  animation: reward-float 3s ease-in-out infinite;
+}
+.confetti-dot {
+  animation-name: confetti-fall;
+  animation-timing-function: ease-in;
+  animation-iteration-count: 3;
+}
+
+/* Disable animations when app-level reduced-motion is enabled */
+.reduced-motion .star-pop,
+.reduced-motion .reward-float {
+  animation: none;
+}
+.reduced-motion .confetti-dot {
+  animation-name: none;
+}
+
+/* Also respect OS preference as a safety net */
+@media (prefers-reduced-motion: reduce) {
+  .star-pop,
   .reward-float {
-    animation: reward-float 3s ease-in-out infinite;
+    animation: none;
   }
   .confetti-dot {
-    animation-name: confetti-fall;
-    animation-timing-function: ease-in;
-    animation-iteration-count: infinite;
+    animation-name: none;
   }
 }
 @keyframes star-pop {

@@ -16,6 +16,7 @@ interface LevelCompleteProps {
   level: LevelConfig;
   completionMessage: string;
   onNext: () => void;
+  reducedMotion: boolean;
 }
 
 const CONFETTI_COLORS = ["#fbbf24", "#f9a8d4", "#86efac", "#93c5fd", "#fca5a5", "#fcd34d"];
@@ -24,6 +25,7 @@ export function LevelComplete({
   level,
   completionMessage,
   onNext,
+  reducedMotion,
 }: LevelCompleteProps) {
   const t = level.theme;
   const rewardSprite =
@@ -33,29 +35,31 @@ export function LevelComplete({
 
   return (
     <div
-      className="relative overflow-hidden flex flex-col items-center justify-center min-h-[100dvh] px-6 gap-6 text-center"
+      className={`relative overflow-hidden flex flex-col items-center justify-center min-h-[100dvh] px-6 gap-6 text-center${reducedMotion ? " reduced-motion" : ""}`}
       style={{ backgroundColor: t.backgroundColor, color: t.textColor }}
     >
-      {/* Gentle confetti (skipped under reduced-motion) */}
-      <div className="celebration-confetti" aria-hidden="true">
-        {Array.from({ length: 24 }).map((_, i) => (
-          <span
-            key={i}
-            className="confetti-dot"
-            style={{
-              left: `${(i * 37) % 100}%`,
-              backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-              animationDelay: `${(i % 8) * 0.45}s`,
-              animationDuration: `${3.2 + (i % 4) * 0.6}s`,
-            }}
-          />
-        ))}
-      </div>
+      {/* Gentle confetti (skipped when reduced-motion is enabled) */}
+      {!reducedMotion && (
+        <div className="celebration-confetti" aria-hidden="true">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <span
+              key={i}
+              className="confetti-dot"
+              style={{
+                left: `${(i * 37) % 100}%`,
+                backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+                animationDelay: `${(i % 8) * 0.45}s`,
+                animationDuration: `${3.2 + (i % 4) * 0.6}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Stars */}
       <div className="flex gap-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="star-pop" style={{ animationDelay: `${i * 0.18}s` }}>
+          <div key={i} className={reducedMotion ? "" : "star-pop"} style={{ animationDelay: `${i * 0.18}s` }}>
             <Star
               className="w-10 h-10"
               style={{
@@ -90,7 +94,7 @@ export function LevelComplete({
         <img
           src={rewardSprite}
           alt={level.objectiveType === "interact-with-npc" ? "勇敢夥伴" : "情緒碎片"}
-          className="w-20 h-20 object-contain reward-float"
+          className={`w-20 h-20 object-contain${reducedMotion ? "" : " reward-float"}`}
           draggable={false}
         />
       </div>
