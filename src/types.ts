@@ -1,5 +1,44 @@
 export type Direction = "up" | "down" | "left" | "right";
 
+// ─── Camera Interaction Types ───────────────────────────────────────────────
+
+export type RealWorldTaskType = "choice" | "camera";
+
+export interface HSLColorTarget {
+  hueRanges: Array<[number, number]>; // e.g. [[0, 15], [345, 360]] for red
+  saturationMin: number;
+  lightnessMin: number;
+  lightnessMax?: number;
+  pixelRatioThreshold: number;
+}
+
+export interface ObjectDetectionStrategy {
+  type: "object";
+  targetLabel: string; // COCO-SSD class label
+}
+
+export interface ColorDetectionStrategy {
+  type: "color";
+  target: HSLColorTarget;
+}
+
+export interface ManualDetectionStrategy {
+  type: "manual";
+  instruction: string;
+}
+
+export type CameraDetectionStrategy =
+  | ObjectDetectionStrategy
+  | ColorDetectionStrategy
+  | ManualDetectionStrategy;
+
+export interface CameraTask {
+  targetLabel: string;
+  strategies: CameraDetectionStrategy[]; // ordered by priority
+  durationMs: number;
+  fallbackStrategy?: "skip" | "manual";
+}
+
 export interface Position {
   row: number;
   col: number;
@@ -11,6 +50,14 @@ export interface TaskChoice {
   id: string;
   label: string;
   icon: string;
+}
+
+export interface RealWorldTask {
+  type?: RealWorldTaskType; // defaults to "choice" for backwards compat
+  title: string;
+  description: string;
+  choices?: TaskChoice[];     // for type: "choice"
+  cameraTask?: CameraTask;    // for type: "camera"
 }
 
 export interface LevelConfig {
@@ -29,11 +76,7 @@ export interface LevelConfig {
     icon: string;
     position: Position;
   };
-  realWorldTask: {
-    title: string;
-    description: string;
-    choices: TaskChoice[];
-  };
+  realWorldTask: RealWorldTask;
   completionMessage: string;
   theme: string;
 }

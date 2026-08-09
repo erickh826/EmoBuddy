@@ -2,6 +2,7 @@ import { getLucideIcon } from "../lib/icons";
 import type { LevelConfig } from "../types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { CameraTaskModal } from "./CameraTaskModal";
 
 interface RealWorldTaskProps {
   level: LevelConfig;
@@ -16,7 +17,25 @@ export function RealWorldTask({
   onSelectChoice,
   onContinue,
 }: RealWorldTaskProps) {
+  const { realWorldTask } = level;
+  const taskType = realWorldTask.type ?? "choice";
+
+  // ─── Camera task ──────────────────────────────────────────────────────────
+
+  if (taskType === "camera" && realWorldTask.cameraTask) {
+    return (
+      <CameraTaskModal
+        cameraTask={realWorldTask.cameraTask}
+        onComplete={onContinue}
+        onSkip={onContinue}
+      />
+    );
+  }
+
+  // ─── Choice task (original) ───────────────────────────────────────────────
+
   const hasSelected = selectedChoice !== undefined;
+  const choices = realWorldTask.choices ?? [];
 
   return (
     <Dialog open={true}>
@@ -26,14 +45,14 @@ export function RealWorldTask({
         onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle className="text-xl text-center">{level.realWorldTask.title}</DialogTitle>
+          <DialogTitle className="text-xl text-center">{realWorldTask.title}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <p className="text-center text-slate-600">{level.realWorldTask.description}</p>
+          <p className="text-center text-slate-600">{realWorldTask.description}</p>
 
           <div className="flex flex-col gap-2">
-            {level.realWorldTask.choices.map((choice) => {
+            {choices.map((choice) => {
               const Icon = getLucideIcon(choice.icon);
               const isSelected = selectedChoice === choice.id;
 
@@ -69,3 +88,4 @@ export function RealWorldTask({
     </Dialog>
   );
 }
+
