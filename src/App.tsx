@@ -96,15 +96,21 @@ function App() {
   switch (state.phase) {
     case "welcome":
       return (
-        <WelcomeScreen onStart={handleStartGame} />
+        <div className="screen-enter">
+          <WelcomeScreen onStart={handleStartGame} />
+        </div>
       );
 
     case "level-intro":
-      return <LevelIntro level={level} onStart={handleStartLevel} />;
+      return (
+        <div className="screen-enter">
+          <LevelIntro level={level} onStart={handleStartLevel} />
+        </div>
+      );
 
     case "playing":
       return (
-        <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-4">
+        <div className="screen-enter flex flex-col items-center justify-center min-h-[100dvh] gap-4">
           <div className="w-full max-w-[560px] flex items-center justify-end px-4">
             <button
               type="button"
@@ -128,7 +134,7 @@ function App() {
 
     case "real-world-task":
       return (
-        <div className="flex flex-col items-center justify-center min-h-[100dvh] py-4 gap-4">
+        <div className="screen-enter flex flex-col items-center justify-center min-h-[100dvh] py-4 gap-4">
           <GameBoard level={level} state={state} onMove={handleMove} />
           <RealWorldTask
             level={level}
@@ -141,7 +147,7 @@ function App() {
 
     case "parent-confirmation":
       return (
-        <div className="flex flex-col items-center justify-center min-h-[100dvh] py-4 gap-4">
+        <div className="screen-enter flex flex-col items-center justify-center min-h-[100dvh] py-4 gap-4">
           <GameBoard level={level} state={state} onMove={handleMove} />
           <ParentUnlock
             onConfirmed={handleParentConfirmed}
@@ -152,15 +158,18 @@ function App() {
 
     case "level-complete":
       return (
+        <div className="screen-enter">
         <LevelComplete
           level={level}
           completionMessage={level.completionMessage}
           onNext={handleNextLevel}
         />
+        </div>
       );
 
     case "certificate":
       return (
+        <div className="screen-enter">
         <Certificate
           levels={levels}
           selectedEmotions={[
@@ -168,6 +177,7 @@ function App() {
           ]}
           onRestart={handleRestart}
         />
+        </div>
       );
 
     default:
