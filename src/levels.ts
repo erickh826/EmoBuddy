@@ -22,13 +22,30 @@ export const levels: LevelConfig[] = [
       position: { row: 1, col: 5 },
     },
     realWorldTask: {
+      type: "camera",
       title: "開心任務",
-      description: "和身邊的人分享一件讓你開心的事情！",
-      choices: [
-        { id: "hug", label: "給一個大大的擁抱", icon: "Heart" },
-        { id: "draw", label: "畫一張笑臉", icon: "Pencil" },
-        { id: "jump", label: "開心地跳三下", icon: "Sparkles" },
-      ],
+      description: "在鏡頭前找到一個紅色的東西！",
+      cameraTask: {
+        targetLabel: "紅色的東西",
+        durationMs: 2000,
+        fallbackStrategy: "manual",
+        strategies: [
+          {
+            type: "color",
+            target: {
+              hueRanges: [[0, 15], [345, 360]],
+              saturationMin: 40,
+              lightnessMin: 15,
+              lightnessMax: 85,
+              pixelRatioThreshold: 0.08,
+            },
+          },
+          {
+            type: "manual",
+            instruction: "請大人確認你找到了紅色的東西！",
+          },
+        ],
+      },
     },
     completionMessage: "你收集了「開心碎片」！",
     theme: "amber",
@@ -54,13 +71,30 @@ export const levels: LevelConfig[] = [
       position: { row: 1, col: 6 },
     },
     realWorldTask: {
+      type: "camera",
       title: "平靜任務",
-      description: "選一個讓你感到放鬆的方式！",
-      choices: [
-        { id: "breathe", label: "深呼吸三次", icon: "Wind" },
-        { id: "sit", label: "閉上眼睛坐一會兒", icon: "Sparkles" },
-        { id: "listen", label: "聽一聽周圍的聲音", icon: "Ear" },
-      ],
+      description: "在鏡頭前找到一個藍色的東西！",
+      cameraTask: {
+        targetLabel: "藍色的東西",
+        durationMs: 2000,
+        fallbackStrategy: "manual",
+        strategies: [
+          {
+            type: "color",
+            target: {
+              hueRanges: [[195, 255]],
+              saturationMin: 30,
+              lightnessMin: 15,
+              lightnessMax: 85,
+              pixelRatioThreshold: 0.08,
+            },
+          },
+          {
+            type: "manual",
+            instruction: "請大人確認你找到了藍色的東西！",
+          },
+        ],
+      },
     },
     completionMessage: "你收集了「平靜碎片」！",
     theme: "blue",
@@ -85,13 +119,28 @@ export const levels: LevelConfig[] = [
       position: { row: 3, col: 5 },
     },
     realWorldTask: {
+      type: "camera",
       title: "勇敢任務",
-      description: "做一件你覺得有一點點難，但可以做到的事！",
-      choices: [
-        { id: "ask", label: "問老師或家長一個問題", icon: "MessageCircle" },
-        { id: "try", label: "試試看新的食物", icon: "Utensils" },
-        { id: "help", label: "幫別人做一件小事", icon: "HandHeart" },
-      ],
+      description: "在鏡頭前找到一個書本或杯子！",
+      cameraTask: {
+        targetLabel: "書本或杯子",
+        durationMs: 2000,
+        fallbackStrategy: "manual",
+        strategies: [
+          {
+            type: "object",
+            targetLabel: "book",
+          },
+          {
+            type: "object",
+            targetLabel: "cup",
+          },
+          {
+            type: "manual",
+            instruction: "請大人確認你找到了書本或杯子！",
+          },
+        ],
+      },
     },
     completionMessage: "你找到了「勇敢夥伴」！",
     theme: "emerald",
