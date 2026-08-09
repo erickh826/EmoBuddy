@@ -163,6 +163,7 @@ function App() {
           level={level}
           completionMessage={level.completionMessage}
           onNext={handleNextLevel}
+          reducedMotion={state.reducedMotion}
         />
         </div>
       );
