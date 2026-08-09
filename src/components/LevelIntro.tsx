@@ -1,6 +1,5 @@
-import { Button } from "@/components/ui/button";
+import { Sparkles } from "lucide-react";
 import type { LevelConfig } from "../types";
-import { getLucideIcon } from "../lib/icons";
 
 interface LevelIntroProps {
   level: LevelConfig;
@@ -8,44 +7,79 @@ interface LevelIntroProps {
 }
 
 export function LevelIntro({ level, onStart }: LevelIntroProps) {
-  const ShardIcon = level.shard ? getLucideIcon(level.shard.icon) : null;
-  const NpcIcon = level.npc ? getLucideIcon(level.npc.icon) : null;
+  const t = level.theme;
+  const isNpc = level.objectiveType === "interact-with-npc";
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[100dvh] px-4 gap-6">
-      <div className="text-center space-y-2">
-        <p className="text-sm text-slate-400">第 {level.id} 關</p>
-        <h2 className="text-2xl font-bold text-slate-800">{level.title}</h2>
+    <div
+      className="flex flex-col items-center justify-center min-h-[100dvh] px-6 gap-6 text-center"
+      style={{ backgroundColor: t.backgroundColor, color: t.textColor }}
+    >
+      {/* Decorative top bar */}
+      <div
+        className="w-20 h-1 rounded-full mb-2"
+        style={{ backgroundColor: t.accentColor }}
+      />
+
+      {/* Level number badge */}
+      <div
+        className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-extrabold shadow-lg"
+        style={{
+          background: `linear-gradient(135deg, ${t.accentColor}, ${t.wallSide})`,
+        }}
+      >
+        {level.id}
       </div>
 
-      {level.objectiveType === "collect-shard" && level.shard && ShardIcon && (
-        <div className="flex flex-col items-center gap-2">
-          <div
-            className="w-20 h-20 rounded-full flex items-center justify-center"
-            style={{ backgroundColor: level.shard.color }}
-          >
-            <ShardIcon className="w-10 h-10 text-white" />
-          </div>
-          <p className="text-slate-500">收集碎片來前進！</p>
-        </div>
-      )}
+      {/* Title */}
+      <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: t.textColor }}>
+        {level.title}
+      </h1>
 
-      {level.objectiveType === "interact-with-npc" && level.npc && NpcIcon && (
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-20 h-20 rounded-full bg-emerald-400 flex items-center justify-center">
-            <NpcIcon className="w-10 h-10 text-white" />
-          </div>
-          <p className="text-slate-500">找到夥伴來前進！</p>
+      {/* Objective illustration */}
+      <div className="flex flex-col items-center gap-3">
+        <div
+          className="w-24 h-24 rounded-3xl flex items-center justify-center shadow-xl animate-bounce"
+          style={{
+            background: isNpc
+              ? (t.npcGradient ?? t.shardGradient)
+              : t.shardGradient,
+            boxShadow: isNpc ? "0 0 24px rgba(0,0,0,0.15)" : t.shardGlow,
+          }}
+        >
+          <Sparkles className="w-10 h-10 text-white" />
         </div>
-      )}
+        <p className="text-sm font-medium opacity-70" style={{ color: t.textColor }}>
+          {isNpc ? "找到勇敢夥伴！" : "收集情緒碎片！"}
+        </p>
+      </div>
 
-      <Button
-        size="lg"
-        className="w-full max-w-xs h-14 text-lg bg-orange-500 hover:bg-orange-600"
-        onClick={onStart}
+      {/* Emotion hint */}
+      <p
+        className="text-base leading-relaxed max-w-xs px-4 py-3 rounded-2xl"
+        style={{
+          backgroundColor: `${t.accentColor}1a`,
+          color: t.textColor,
+        }}
       >
-        開始
-      </Button>
+        {level.emotion === "happy"
+          ? "🌻 用開心能量照亮花園！"
+          : level.emotion === "calm"
+            ? "🌿 在平靜森林中放慢腳步。"
+            : "⛰️ 勇敢踏出你的每一步！"}
+      </p>
+
+      {/* Start button */}
+      <button
+        type="button"
+        onClick={onStart}
+        className="px-10 py-4 rounded-2xl text-white text-lg font-bold shadow-lg transition-all duration-200 active:scale-95 hover:shadow-xl"
+        style={{
+          background: `linear-gradient(135deg, ${t.accentColor}, ${t.wallSide})`,
+        }}
+      >
+        開始探險
+      </button>
     </div>
   );
 }

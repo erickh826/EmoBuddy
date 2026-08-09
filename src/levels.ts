@@ -1,4 +1,5 @@
 import type { LevelConfig } from "./types";
+import { happyGardenTheme, calmForestTheme, braveHillsTheme } from "./themes";
 
 export const levels: LevelConfig[] = [
   {
@@ -48,7 +49,7 @@ export const levels: LevelConfig[] = [
       },
     },
     completionMessage: "你收集了「開心碎片」！",
-    theme: "amber",
+    theme: happyGardenTheme,
   },
   {
     id: 2,
@@ -97,7 +98,7 @@ export const levels: LevelConfig[] = [
       },
     },
     completionMessage: "你收集了「平靜碎片」！",
-    theme: "blue",
+    theme: calmForestTheme,
   },
   {
     id: 3,
@@ -143,6 +144,6 @@ export const levels: LevelConfig[] = [
       },
     },
     completionMessage: "你找到了「勇敢夥伴」！",
-    theme: "emerald",
+    theme: braveHillsTheme,
   },
 ];
