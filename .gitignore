@@ -69,7 +69,6 @@ test-results/
 
 # Generated Game Assets
 public/assets/
-src/assets/
 
 # Python & Script outputs
 __pycache__/
