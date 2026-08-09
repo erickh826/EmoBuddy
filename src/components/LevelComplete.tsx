@@ -1,40 +1,71 @@
 import { Star, ArrowRight } from "lucide-react";
 import type { LevelConfig } from "../types";
 
+import shardGolden from "../assets/sprites/shard_golden.png";
+import shardGreen from "../assets/sprites/shard_green.png";
+import shardOrange from "../assets/sprites/shard_orange.png";
+import npcFox from "../assets/sprites/npc_fox.png";
+
+const shardSprites: Record<string, string> = {
+  "happy-garden": shardGolden,
+  "calm-forest": shardGreen,
+  "brave-hills": shardOrange,
+};
+
 interface LevelCompleteProps {
   level: LevelConfig;
   completionMessage: string;
   onNext: () => void;
+  reducedMotion: boolean;
 }
+
+const CONFETTI_COLORS = ["#fbbf24", "#f9a8d4", "#86efac", "#93c5fd", "#fca5a5", "#fcd34d"];
 
 export function LevelComplete({
   level,
   completionMessage,
   onNext,
+  reducedMotion,
 }: LevelCompleteProps) {
   const t = level.theme;
+  const rewardSprite =
+    level.objectiveType === "interact-with-npc"
+      ? npcFox
+      : (shardSprites[t.id] ?? shardGolden);
 
   return (
     <div
-      className="flex flex-col items-center justify-center min-h-[100dvh] px-6 gap-6 text-center"
+      className={`relative overflow-hidden flex flex-col items-center justify-center min-h-[100dvh] px-6 gap-6 text-center${reducedMotion ? " reduced-motion" : ""}`}
       style={{ backgroundColor: t.backgroundColor, color: t.textColor }}
     >
+      {/* Gentle confetti (skipped when reduced-motion is enabled) */}
+      {!reducedMotion && (
+        <div className="celebration-confetti" aria-hidden="true">
+          {Array.from({ length: 24 }).map((_, i) => (
+            <span
+              key={i}
+              className="confetti-dot"
+              style={{
+                left: `${(i * 37) % 100}%`,
+                backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+                animationDelay: `${(i % 8) * 0.45}s`,
+                animationDuration: `${3.2 + (i % 4) * 0.6}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Stars */}
       <div className="flex gap-3">
         {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="relative"
-            style={{
-              animationDelay: `${i * 0.2}s`,
-            }}
-          >
+          <div key={i} className={reducedMotion ? "" : "star-pop"} style={{ animationDelay: `${i * 0.18}s` }}>
             <Star
-              className="w-10 h-10 drop-shadow-lg"
+              className="w-10 h-10"
               style={{
                 color: t.accentColor,
                 fill: t.accentColor,
-                filter: `drop-shadow(0 0 8px ${t.accentColor}66)`,
+                filter: `drop-shadow(0 0 10px ${t.accentColor}66)`,
               }}
             />
           </div>
@@ -42,7 +73,7 @@ export function LevelComplete({
       </div>
 
       {/* Completion message */}
-      <h2 className="text-2xl font-extrabold" style={{ color: t.textColor }}>
+      <h2 className="text-3xl" style={{ color: t.textColor }}>
         太棒了！
       </h2>
       <p
@@ -55,21 +86,17 @@ export function LevelComplete({
         {completionMessage}
       </p>
 
-      {/* Shard / NPC display */}
+      {/* Collected reward sprite */}
       <div
-        className="w-20 h-20 rounded-2xl flex items-center justify-center shadow-lg"
-        style={{
-          background:
-            level.objectiveType === "interact-with-npc"
-              ? (t.npcGradient ?? t.shardGradient)
-              : t.shardGradient,
-          boxShadow:
-            level.objectiveType === "interact-with-npc"
-              ? "0 0 24px rgba(0,0,0,0.15)"
-              : t.shardGlow,
-        }}
+        className="w-24 h-24 rounded-3xl flex items-center justify-center bg-white/70 shadow-lg"
+        style={{ boxShadow: `0 10px 28px rgba(0,0,0,0.14), 0 0 0 4px ${t.accentColor}22` }}
       >
-        <Star className="w-8 h-8 text-white" />
+        <img
+          src={rewardSprite}
+          alt={level.objectiveType === "interact-with-npc" ? "勇敢夥伴" : "情緒碎片"}
+          className={`w-20 h-20 object-contain${reducedMotion ? "" : " reward-float"}`}
+          draggable={false}
+        />
       </div>
 
       {/* Next button */}
