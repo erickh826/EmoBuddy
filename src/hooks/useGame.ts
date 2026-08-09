@@ -18,7 +18,7 @@ export function useGame() {
       if (!nextPos) return;
 
       isMovingRef.current = true;
-      dispatch({ type: "MOVE_PLAYER", position: nextPos });
+      dispatch({ type: "MOVE_PLAYER", position: nextPos, direction });
 
       // Check if objective is met
       if (level.objectiveType === "collect-shard" && level.shard) {

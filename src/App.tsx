@@ -7,7 +7,6 @@ import { playMoveSound, playCompleteSound, playUnlockSound } from "./lib/audio";
 import { WelcomeScreen } from "./components/WelcomeScreen";
 import { LevelIntro } from "./components/LevelIntro";
 import { GameBoard } from "./components/GameBoard";
-import { DirectionPad } from "./components/DirectionPad";
 import { RealWorldTask } from "./components/RealWorldTask";
 import { ParentUnlock } from "./components/ParentUnlock";
 import { LevelComplete } from "./components/LevelComplete";
@@ -93,20 +92,11 @@ function App() {
     dispatch({ type: "TOGGLE_MUTE" });
   }, [dispatch]);
 
-  const handleToggleReducedMotion = useCallback(() => {
-    dispatch({ type: "TOGGLE_REDUCED_MOTION" });
-  }, [dispatch]);
-
   // Phase rendering
   switch (state.phase) {
     case "welcome":
       return (
-        <WelcomeScreen
-          onStart={handleStartGame}
-          state={state}
-          onToggleMute={handleToggleMute}
-          onToggleReducedMotion={handleToggleReducedMotion}
-        />
+        <WelcomeScreen onStart={handleStartGame} />
       );
 
     case "level-intro":
@@ -114,40 +104,23 @@ function App() {
 
     case "playing":
       return (
-        <div className="flex flex-col items-center justify-center min-h-[100dvh] px-4 py-4 gap-4">
-          <div className="w-full max-w-[560px] flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-700">
-              {level.title}
-            </h2>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                aria-label={state.muted ? "開啟音效" : "靜音"}
-                className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors"
-                onClick={handleToggleMute}
-              >
-                {state.muted ? (
-                  <VolumeX className="w-4 h-4 text-slate-600" />
-                ) : (
-                  <Volume2 className="w-4 h-4 text-slate-600" />
-                )}
-              </button>
-            </div>
+        <div className="flex flex-col items-center justify-center min-h-[100dvh] gap-4">
+          <div className="w-full max-w-[560px] flex items-center justify-end px-4">
+            <button
+              type="button"
+              aria-label={state.muted ? "開啟音效" : "靜音"}
+              className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors"
+              onClick={handleToggleMute}
+            >
+              {state.muted ? (
+                <VolumeX className="w-4 h-4 text-slate-600" />
+              ) : (
+                <Volume2 className="w-4 h-4 text-slate-600" />
+              )}
+            </button>
           </div>
-
-          <GameBoard
-            level={level}
-            playerPosition={state.playerPosition}
-            objectiveCompleted={state.objectiveCompleted}
-            reducedMotion={state.reducedMotion}
-          />
-
-          <DirectionPad
-            onMove={handleMove}
-            disabled={state.phase !== "playing"}
-          />
-
-          <p className="text-sm text-slate-400">
+          <GameBoard level={level} state={state} onMove={handleMove} />
+          <p className="text-sm text-slate-400 pb-4">
             使用方向鍵、WASD 或方向盤移動
           </p>
         </div>
@@ -155,22 +128,8 @@ function App() {
 
     case "real-world-task":
       return (
-        <div className="flex flex-col items-center justify-center min-h-[100dvh] px-4 py-4 gap-4">
-          <div className="w-full max-w-[560px] flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-700">
-              {level.title}
-            </h2>
-          </div>
-          <GameBoard
-            level={level}
-            playerPosition={state.playerPosition}
-            objectiveCompleted={state.objectiveCompleted}
-            reducedMotion={state.reducedMotion}
-          />
-          <DirectionPad
-            onMove={handleMove}
-            disabled={true}
-          />
+        <div className="flex flex-col items-center justify-center min-h-[100dvh] py-4 gap-4">
+          <GameBoard level={level} state={state} onMove={handleMove} />
           <RealWorldTask
             level={level}
             selectedChoice={state.selectedTaskChoice}
@@ -182,18 +141,8 @@ function App() {
 
     case "parent-confirmation":
       return (
-        <div className="flex flex-col items-center justify-center min-h-[100dvh] px-4 py-4 gap-4">
-          <div className="w-full max-w-[560px] flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-700">
-              {level.title}
-            </h2>
-          </div>
-          <GameBoard
-            level={level}
-            playerPosition={state.playerPosition}
-            objectiveCompleted={state.objectiveCompleted}
-            reducedMotion={state.reducedMotion}
-          />
+        <div className="flex flex-col items-center justify-center min-h-[100dvh] py-4 gap-4">
+          <GameBoard level={level} state={state} onMove={handleMove} />
           <ParentUnlock
             onConfirmed={handleParentConfirmed}
             onSkip={handleSkipParent}
@@ -204,8 +153,9 @@ function App() {
     case "level-complete":
       return (
         <LevelComplete
-          message={level.completionMessage}
-          onNextLevel={handleNextLevel}
+          level={level}
+          completionMessage={level.completionMessage}
+          onNext={handleNextLevel}
         />
       );
 
