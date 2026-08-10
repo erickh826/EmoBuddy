@@ -11,6 +11,12 @@
 
 ---
 
+## 🎥 示範影片 (Demo)
+
+[![EmoBuddy Demo](https://img.youtube.com/vi/upgyQBOm8xk/maxresdefault.jpg)](https://www.youtube.com/watch?v=upgyQBOm8xk)
+
+> 點擊上方圖片觀看完整遊戲示範影片
+
 ## ✨ 核心特色 (Core Features)
 
 ### 🎨 Top-Down 2.5D 關卡與 Theme 系統
