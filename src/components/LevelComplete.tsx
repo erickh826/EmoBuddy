@@ -5,6 +5,7 @@ import shardGolden from "../assets/sprites/shard_golden.png";
 import shardGreen from "../assets/sprites/shard_green.png";
 import shardOrange from "../assets/sprites/shard_orange.png";
 import npcFox from "../assets/sprites/npc_fox.png";
+import { EmotionBuddy } from "./EmotionBuddy";
 
 const shardSprites: Record<string, string> = {
   "happy-garden": shardGolden,
@@ -19,8 +20,6 @@ interface LevelCompleteProps {
   reducedMotion: boolean;
 }
 
-const CONFETTI_COLORS = ["#fbbf24", "#f9a8d4", "#86efac", "#93c5fd", "#fca5a5", "#fcd34d"];
-
 export function LevelComplete({
   level,
   completionMessage,
@@ -32,30 +31,13 @@ export function LevelComplete({
     level.objectiveType === "interact-with-npc"
       ? npcFox
       : (shardSprites[t.id] ?? shardGolden);
+  const buddyKind = level.emotion === "happy" ? "happy" : level.emotion === "calm" ? "calm" : "brave";
 
   return (
-    <div
-      className={`relative overflow-hidden flex flex-col items-center justify-center min-h-[100dvh] px-6 gap-6 text-center${reducedMotion ? " reduced-motion" : ""}`}
+    <main
+      className={`emotion-screen flex-col gap-6${reducedMotion ? " reduced-motion" : ""}`}
       style={{ backgroundColor: t.backgroundColor, color: t.textColor }}
     >
-      {/* Gentle confetti (skipped when reduced-motion is enabled) */}
-      {!reducedMotion && (
-        <div className="celebration-confetti" aria-hidden="true">
-          {Array.from({ length: 24 }).map((_, i) => (
-            <span
-              key={i}
-              className="confetti-dot"
-              style={{
-                left: `${(i * 37) % 100}%`,
-                backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-                animationDelay: `${(i % 8) * 0.45}s`,
-                animationDuration: `${3.2 + (i % 4) * 0.6}s`,
-              }}
-            />
-          ))}
-        </div>
-      )}
-
       {/* Stars */}
       <div className="flex gap-3">
         {[0, 1, 2].map((i) => (
@@ -65,7 +47,6 @@ export function LevelComplete({
               style={{
                 color: t.accentColor,
                 fill: t.accentColor,
-                filter: `drop-shadow(0 0 10px ${t.accentColor}66)`,
               }}
             />
           </div>
@@ -73,13 +54,12 @@ export function LevelComplete({
       </div>
 
       {/* Completion message */}
-      <h2 className="text-3xl" style={{ color: t.textColor }}>
+      <h2 className="text-4xl font-black" style={{ color: t.textColor }}>
         太棒了！
       </h2>
       <p
-        className="text-base leading-relaxed max-w-xs px-4 py-3 rounded-2xl"
+        className="max-w-xs rounded-2xl border-2 border-[var(--ink)] bg-white px-5 py-4 text-base font-bold leading-relaxed"
         style={{
-          backgroundColor: `${t.accentColor}1a`,
           color: t.textColor,
         }}
       >
@@ -87,30 +67,24 @@ export function LevelComplete({
       </p>
 
       {/* Collected reward sprite */}
-      <div
-        className="w-24 h-24 rounded-3xl flex items-center justify-center bg-white/70 shadow-lg"
-        style={{ boxShadow: `0 10px 28px rgba(0,0,0,0.14), 0 0 0 4px ${t.accentColor}22` }}
-      >
-        <img
-          src={rewardSprite}
-          alt={level.objectiveType === "interact-with-npc" ? "勇敢夥伴" : "情緒碎片"}
-          className={`w-20 h-20 object-contain${reducedMotion ? "" : " reward-float"}`}
-          draggable={false}
-        />
+      <div className="relative grid h-28 w-28 place-items-center rounded-[2rem] border-2 border-[var(--ink)] bg-white shadow-[0_7px_0_rgba(52,56,47,.14)]">
+        {level.objectiveType === "interact-with-npc" ? (
+          <img src={rewardSprite} alt="勇敢夥伴" className="h-20 w-20 object-contain" draggable={false} />
+        ) : (
+          <EmotionBuddy kind={buddyKind} size="md" />
+        )}
       </div>
 
       {/* Next button */}
       <button
         type="button"
         onClick={onNext}
-        className="flex items-center gap-2 px-8 py-4 rounded-2xl text-white text-lg font-bold shadow-lg transition-all duration-200 active:scale-95 hover:shadow-xl"
-        style={{
-          background: `linear-gradient(135deg, ${t.accentColor}, ${t.wallSide})`,
-        }}
+        className="emotion-button px-9"
+        style={{ backgroundColor: t.accentColor }}
       >
         下一關
         <ArrowRight className="w-5 h-5" />
       </button>
-    </div>
+    </main>
   );
 }

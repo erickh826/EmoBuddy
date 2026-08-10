@@ -46,8 +46,8 @@ function DPadButton({
       `}
       style={{
         backgroundColor: accentColor,
-        border: "3px solid rgba(255, 255, 255, 0.7)",
-        boxShadow: "0 4px 0 rgba(0, 0, 0, 0.15), 0 8px 16px rgba(0, 0, 0, 0.12)",
+        border: "3px solid #34382f",
+        boxShadow: "0 5px 0 rgba(52, 56, 47, 0.22)",
       }}
       onPointerDown={handlePress}
       disabled={disabled}
@@ -59,7 +59,7 @@ function DPadButton({
 
 export function DirectionPad({ onMove, disabled, theme }: DirectionPadProps) {
   const accentColor = theme?.accentColor ?? "#94a3b8";
-  const iconColor = "#ffffff";
+  const iconColor = "#34382f";
 
   const handleClick = useCallback(
     (direction: Direction) => {
