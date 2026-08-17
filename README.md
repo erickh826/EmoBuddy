@@ -63,7 +63,7 @@
 ### 2. 本地開發 (Development)
 ```bash
 # 複製專案
-git clone https://github.com/your-repo/EmoBuddy.git
+git clone https://github.com/erickh826/EmoBuddy.git
 cd EmoBuddy
 
 # 安裝依賴
